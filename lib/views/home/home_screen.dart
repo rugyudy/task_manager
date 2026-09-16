@@ -1,30 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/widget_catalog.dart';
 import '../../providers/layout_provider.dart';
-import 'widgets/dashboard_grid.dart';
-import 'widgets/memo_pane.dart';
-import 'widgets/schedule_pane.dart';
-import 'widgets/task_pane.dart';
+import 'widgets/pane_tile.dart';
+import 'widgets/tiling_layout.dart';
+import 'widgets/widget_picker.dart';
 
 const _wideBreakpoint = 900.0;
 
-Widget _paneFor(String key) {
-  switch (key) {
-    case 'tasks':
-      return const TaskPane();
-    case 'schedules':
-      return const SchedulePane();
-    case 'memos':
-      return const MemoPane();
-    default:
-      throw ArgumentError('unknown pane: $key');
-  }
-}
-
-/// 「タスク」「スケジュール」「メモ」を1画面で俯瞰できるホーム画面。
-/// 画面幅が狭い場合はドラッグで並び替え可能な縦積みリスト、
-/// 広い場合はグリッドに吸着しながら自由に配置・リサイズできるダッシュボードになる。
+/// 「タスク」「スケジュール」「メモ」などを1画面で俯瞰できるホーム画面。
+/// 画面幅が広い場合はIDEのように分割・ドラッグ移動・リサイズできるタイリング
+/// レイアウト、狭い場合はツリーを上から順に並べた縦積みリストになる。
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -33,52 +21,64 @@ class HomeScreen extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
-        return isWide ? const DashboardGrid() : const _NarrowHome();
+        return Scaffold(
+          body: isWide ? const TilingLayout() : const _NarrowHome(),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () async {
+              final currentTypes = allTypesIn(ref.read(homeLayoutProvider).value);
+              final available = allWidgetTypes.where((t) => !currentTypes.contains(t)).toList();
+              final chosen = await showWidgetPicker(context, available);
+              if (chosen != null) {
+                ref.read(homeLayoutProvider.notifier).addWidget(chosen);
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('追加'),
+          ),
+        );
       },
     );
   }
 }
 
-/// スマホ向け: 長押しでドラッグして表示順を入れ替えられる縦積みレイアウト。
+/// スマホ向け: タイリングツリーを上から順に並べた縦積みリスト（並び替えは非対応、
+/// 追加・削除はデスクトップと共通のデータで反映される）。
 class _NarrowHome extends ConsumerWidget {
   const _NarrowHome();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orderAsync = ref.watch(layoutOrderProvider);
+    final layoutAsync = ref.watch(homeLayoutProvider);
 
-    return orderAsync.when(
-      data: (order) => ReorderableListView.builder(
-        buildDefaultDragHandles: false,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: order.length,
-        onReorder: (oldIndex, newIndex) {
-          ref.read(layoutOrderProvider.notifier).reorder(oldIndex, newIndex);
-        },
-        itemBuilder: (context, index) {
-          final key = order[index];
-          return SizedBox(
-            key: ValueKey(key),
-            height: 340,
-            child: Stack(
-              children: [
-                _paneFor(key),
-                Positioned(
-                  top: 8,
-                  right: 4,
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Icon(Icons.drag_handle),
-                    ),
+    return layoutAsync.when(
+      data: (root) {
+        final leaves = flattenLeaves(root);
+        if (leaves.isEmpty) {
+          return const Center(child: Text('ホーム画面には何も配置されていません'));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: leaves.length,
+          itemBuilder: (context, index) {
+            final type = leaves[index];
+            final route = routeFor(type);
+            return SizedBox(
+              height: 340,
+              child: PaneTile(
+                widgetType: type,
+                onExpand: route != null ? () => context.go(route) : null,
+                trailing: [
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    tooltip: '削除',
+                    onPressed: () => ref.read(homeLayoutProvider.notifier).removeWidget(type),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+                ],
+              ),
+            );
+          },
+        );
+      },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('エラー: $error')),
     );

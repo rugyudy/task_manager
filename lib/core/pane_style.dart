@@ -25,11 +25,32 @@ const paneStyles = <String, PaneStyle>{
     icon: Icons.sticky_note_2_rounded,
     colorOf: _secondary,
   ),
+  'pomodoro': PaneStyle(
+    label: 'ポモドーロタイマー',
+    icon: Icons.timer_rounded,
+    colorOf: _error,
+  ),
+  'stats': PaneStyle(
+    label: '進捗ダッシュボード',
+    icon: Icons.insights_rounded,
+    colorOf: _primary,
+  ),
+  'quick_memo': PaneStyle(
+    label: 'クイックメモ',
+    icon: Icons.push_pin_rounded,
+    colorOf: _secondary,
+  ),
+  'deadline_countdown': PaneStyle(
+    label: '締切カウントダウン',
+    icon: Icons.hourglass_bottom_rounded,
+    colorOf: _tertiary,
+  ),
 };
 
 Color _primary(ColorScheme s) => s.primary;
 Color _tertiary(ColorScheme s) => s.tertiary;
 Color _secondary(ColorScheme s) => s.secondary;
+Color _error(ColorScheme s) => s.error;
 
 /// タグ文字列から常に同じ色を割り当てる（タグごとの視認性のため）。
 Color colorForTag(String tag, ColorScheme scheme) {

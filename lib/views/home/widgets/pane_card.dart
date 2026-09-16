@@ -10,13 +10,13 @@ class PaneCard extends StatelessWidget {
     required this.paneKey,
     required this.child,
     this.onExpand,
-    this.dragHandle,
+    this.trailing = const [],
   });
 
   final String paneKey;
   final Widget child;
   final VoidCallback? onExpand;
-  final Widget? dragHandle;
+  final List<Widget> trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +64,7 @@ class PaneCard extends StatelessWidget {
                     tooltip: '全画面表示',
                     onPressed: onExpand,
                   ),
-                if (dragHandle != null) dragHandle!,
+                ...trailing,
               ],
             ),
           ),
