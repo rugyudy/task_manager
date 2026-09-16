@@ -42,7 +42,7 @@ class _QuickMemoPaneState extends ConsumerState<QuickMemoPane> {
               hintText: '思いついたことをすぐメモ…',
               border: InputBorder.none,
             ),
-            onChanged: (value) => ref.read(quickMemoProvider.notifier).update(value),
+            onChanged: (value) => ref.read(quickMemoProvider.notifier).setText(value),
           ),
         );
       },

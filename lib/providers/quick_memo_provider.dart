@@ -11,7 +11,7 @@ class QuickMemoNotifier extends AsyncNotifier<String> {
     return prefs.getString(_kQuickMemoKey) ?? '';
   }
 
-  Future<void> update(String text) async {
+  Future<void> setText(String text) async {
     state = AsyncData(text);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kQuickMemoKey, text);
