@@ -1,0 +1,50 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../providers/schedule_provider.dart';
+import 'pane_card.dart';
+
+class SchedulePane extends ConsumerWidget {
+  const SchedulePane({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final schedulesAsync = ref.watch(schedulesStreamProvider);
+
+    return PaneCard(
+      title: 'スケジュール',
+      icon: Icons.calendar_month_outlined,
+      onExpand: () => context.go('/schedules'),
+      child: schedulesAsync.when(
+        data: (schedules) {
+          final now = DateTime.now();
+          final upcoming = schedules.where((s) => s.endTime.isAfter(now)).toList()
+            ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+          if (upcoming.isEmpty) {
+            return const Center(child: Text('予定はありません'));
+          }
+          final visible = upcoming.take(20).toList();
+          return ListView.builder(
+            itemCount: visible.length,
+            itemBuilder: (context, index) {
+              final schedule = visible[index];
+              return ListTile(
+                dense: true,
+                leading: const Icon(Icons.event),
+                title: Text(schedule.title),
+                subtitle: Text(
+                  '${schedule.startTime.toLocal()} - ${schedule.endTime.toLocal()}'
+                      .replaceAll(RegExp(r'\.\d+'), ''),
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(child: Text('エラー: $error')),
+      ),
+    );
+  }
+}
