@@ -15,6 +15,8 @@ class Memo {
   @Index()
   DateTime updatedAt = DateTime.now();
 
+  List<String> tags = [];
+
   /// このメモから作成されたタスク一覧（Task.memo の逆リンク）
   @Backlink(to: 'memo')
   final tasks = IsarLinks<Task>();

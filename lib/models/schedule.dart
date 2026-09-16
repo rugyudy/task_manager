@@ -14,4 +14,9 @@ class Schedule {
   late DateTime endTime;
 
   String? note;
+
+  List<String> tags = [];
+
+  /// 開始時刻の何分前に通知するか。null の場合は通知しない。
+  int? reminderMinutesBefore;
 }

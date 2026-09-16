@@ -13,10 +13,15 @@ class MemoController {
   MemoController(this._isar);
   final Isar _isar;
 
-  Future<int> addMemo({required String title, required String content}) {
+  Future<int> addMemo({
+    required String title,
+    required String content,
+    List<String> tags = const [],
+  }) {
     final memo = Memo()
       ..title = title
       ..content = content
+      ..tags = tags
       ..updatedAt = DateTime.now();
     return _isar.writeTxn(() => _isar.memos.put(memo));
   }

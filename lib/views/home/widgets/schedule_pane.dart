@@ -13,8 +13,7 @@ class SchedulePane extends ConsumerWidget {
     final schedulesAsync = ref.watch(schedulesStreamProvider);
 
     return PaneCard(
-      title: 'スケジュール',
-      icon: Icons.calendar_month_outlined,
+      paneKey: 'schedules',
       onExpand: () => context.go('/schedules'),
       child: schedulesAsync.when(
         data: (schedules) {
@@ -27,12 +26,13 @@ class SchedulePane extends ConsumerWidget {
           }
           final visible = upcoming.take(20).toList();
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: visible.length,
             itemBuilder: (context, index) {
               final schedule = visible[index];
               return ListTile(
                 dense: true,
-                leading: const Icon(Icons.event),
+                leading: const Icon(Icons.event_rounded, size: 20),
                 title: Text(schedule.title),
                 subtitle: Text(
                   '${schedule.startTime.toLocal()} - ${schedule.endTime.toLocal()}'

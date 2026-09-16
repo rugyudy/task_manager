@@ -18,6 +18,11 @@ class Task {
   @Index()
   DateTime createdAt = DateTime.now();
 
+  List<String> tags = [];
+
+  /// 期限の何分前に通知するか。null の場合は通知しない。
+  int? reminderMinutesBefore;
+
   /// このタスクの作成元となったメモ（メモからの連携用）
   final memo = IsarLink<Memo>();
 }

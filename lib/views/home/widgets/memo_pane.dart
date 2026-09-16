@@ -13,8 +13,7 @@ class MemoPane extends ConsumerWidget {
     final memosAsync = ref.watch(memosStreamProvider);
 
     return PaneCard(
-      title: 'メモ',
-      icon: Icons.note_outlined,
+      paneKey: 'memos',
       onExpand: () => context.go('/memos'),
       child: memosAsync.when(
         data: (memos) {
@@ -23,12 +22,13 @@ class MemoPane extends ConsumerWidget {
           }
           final visible = memos.take(20).toList();
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: visible.length,
             itemBuilder: (context, index) {
               final memo = visible[index];
               return ListTile(
                 dense: true,
-                leading: const Icon(Icons.note_outlined),
+                leading: const Icon(Icons.sticky_note_2_rounded, size: 20),
                 title: Text(memo.title),
                 subtitle: Text(
                   memo.content,

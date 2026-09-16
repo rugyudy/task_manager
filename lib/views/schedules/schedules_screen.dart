@@ -4,6 +4,9 @@ import 'package:table_calendar/table_calendar.dart';
 
 import '../../models/schedule.dart';
 import '../../providers/schedule_provider.dart';
+import '../../widgets/reminder_picker.dart';
+import '../../widgets/search_filter_bar.dart';
+import '../../widgets/tag_editor.dart';
 
 class SchedulesScreen extends ConsumerStatefulWidget {
   const SchedulesScreen({super.key});
@@ -15,14 +18,41 @@ class SchedulesScreen extends ConsumerStatefulWidget {
 class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay = DateTime.now();
+  final _searchController = TextEditingController();
+  final Set<String> _selectedTags = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  List<Schedule> _filter(List<Schedule> schedules) {
+    final query = _searchController.text.trim().toLowerCase();
+    return schedules.where((s) {
+      if (query.isNotEmpty && !s.title.toLowerCase().contains(query)) return false;
+      if (_selectedTags.isNotEmpty && !_selectedTags.every(s.tags.contains)) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
 
   Future<void> _showScheduleDialog({Schedule? schedule}) {
     final titleController = TextEditingController(text: schedule?.title ?? '');
     var start = schedule?.startTime ?? _selectedDay ?? DateTime.now();
     var end = schedule?.endTime ?? start.add(const Duration(hours: 1));
+    var tags = List<String>.from(schedule?.tags ?? const []);
+    var reminderMinutesBefore = schedule?.reminderMinutesBefore;
 
     return showDialog<void>(
       context: context,
@@ -61,28 +91,41 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
 
             return AlertDialog(
               title: Text(schedule == null ? '新しい予定' : '予定を編集'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: 'タイトル'),
-                    autofocus: true,
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('開始: ${start.toString().split('.').first}'),
-                    trailing: const Icon(Icons.edit_calendar_outlined),
-                    onTap: () => pickDateTime(true),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('終了: ${end.toString().split('.').first}'),
-                    trailing: const Icon(Icons.edit_calendar_outlined),
-                    onTap: () => pickDateTime(false),
-                  ),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'タイトル'),
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('開始: ${start.toString().split('.').first}'),
+                      trailing: const Icon(Icons.edit_calendar_outlined),
+                      onTap: () => pickDateTime(true),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('終了: ${end.toString().split('.').first}'),
+                      trailing: const Icon(Icons.edit_calendar_outlined),
+                      onTap: () => pickDateTime(false),
+                    ),
+                    const SizedBox(height: 4),
+                    ReminderPicker(
+                      value: reminderMinutesBefore,
+                      onChanged: (value) => setState(() => reminderMinutesBefore = value),
+                    ),
+                    const SizedBox(height: 12),
+                    TagEditor(
+                      tags: tags,
+                      onChanged: (updated) => setState(() => tags = updated),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -95,12 +138,20 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                     if (title.isEmpty) return;
                     final controller = ref.read(scheduleControllerProvider);
                     if (schedule == null) {
-                      controller.addSchedule(title: title, start: start, end: end);
+                      controller.addSchedule(
+                        title: title,
+                        start: start,
+                        end: end,
+                        tags: tags,
+                        reminderMinutesBefore: reminderMinutesBefore,
+                      );
                     } else {
                       schedule
                         ..title = title
                         ..startTime = start
-                        ..endTime = end;
+                        ..endTime = end
+                        ..tags = tags
+                        ..reminderMinutesBefore = reminderMinutesBefore;
                       controller.updateSchedule(schedule);
                     }
                     Navigator.of(dialogContext).pop();
@@ -121,7 +172,9 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
 
     return Scaffold(
       body: schedulesAsync.when(
-        data: (schedules) {
+        data: (allSchedules) {
+          final allTags = allSchedules.expand((s) => s.tags).toSet().toList()..sort();
+          final schedules = _filter(allSchedules);
           final selected = _selectedDay ?? DateTime.now();
           final eventsByDay = <DateTime, List<Schedule>>{};
           for (final s in schedules) {
@@ -135,6 +188,14 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
 
           return Column(
             children: [
+              SearchFilterBar(
+                searchController: _searchController,
+                allTags: allTags,
+                selectedTags: _selectedTags,
+                onTagToggled: (tag) => setState(() {
+                  if (!_selectedTags.remove(tag)) _selectedTags.add(tag);
+                }),
+              ),
               TableCalendar<Schedule>(
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2035, 12, 31),
@@ -161,9 +222,31 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                           return ListTile(
                             leading: const Icon(Icons.event),
                             title: Text(s.title),
-                            subtitle: Text(
-                              '${TimeOfDay.fromDateTime(s.startTime).format(context)} - '
-                              '${TimeOfDay.fromDateTime(s.endTime).format(context)}',
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${TimeOfDay.fromDateTime(s.startTime).format(context)} - '
+                                  '${TimeOfDay.fromDateTime(s.endTime).format(context)}',
+                                ),
+                                if (s.tags.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Wrap(
+                                      spacing: 4,
+                                      children: [
+                                        for (final tag in s.tags)
+                                          Chip(
+                                            label: Text(tag, style: const TextStyle(fontSize: 11)),
+                                            visualDensity: VisualDensity.compact,
+                                            materialTapTargetSize:
+                                                MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
                             ),
                             onTap: () => _showScheduleDialog(schedule: s),
                             trailing: IconButton(

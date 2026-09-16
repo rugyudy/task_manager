@@ -3,19 +3,105 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _kPaneOrderKey = 'home_pane_order';
-const _kPaneWeightsKey = 'home_pane_weights';
+const _kMobileOrderKey = 'home_pane_order';
+const _kGridLayoutKey = 'home_grid_layout_v2';
 
-/// ホーム画面に表示するペインの識別子と初期表示順。
-const defaultPaneOrder = <String>['tasks', 'schedules', 'memos'];
+/// ホーム画面に表示するペインの識別子。
+const paneKeys = <String>['tasks', 'schedules', 'memos'];
 
-/// ペインの並び順（縦積み/ドラッグ＆ドロップの並び替え結果）を管理する。
-/// アプリを再起動しても順序が復元されるよう SharedPreferences に保存する。
+/// PC/タブレット向けダッシュボードの列数（グリッドの吸着単位）。
+const gridColumns = 4;
+
+/// グリッド上でのペインの位置・サイズ（列・行はグリッド単位）。
+class PaneRect {
+  const PaneRect({
+    required this.col,
+    required this.row,
+    this.colSpan = 2,
+    this.rowSpan = 1,
+  });
+
+  final int col;
+  final int row;
+  final int colSpan;
+  final int rowSpan;
+
+  PaneRect copyWith({int? col, int? row, int? colSpan, int? rowSpan}) {
+    return PaneRect(
+      col: col ?? this.col,
+      row: row ?? this.row,
+      colSpan: colSpan ?? this.colSpan,
+      rowSpan: rowSpan ?? this.rowSpan,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'col': col,
+        'row': row,
+        'colSpan': colSpan,
+        'rowSpan': rowSpan,
+      };
+
+  factory PaneRect.fromJson(Map<String, dynamic> json) => PaneRect(
+        col: json['col'] as int,
+        row: json['row'] as int,
+        colSpan: json['colSpan'] as int,
+        rowSpan: json['rowSpan'] as int,
+      );
+}
+
+Map<String, PaneRect> get _defaultGridLayout => {
+      'tasks': const PaneRect(col: 0, row: 0, colSpan: 2, rowSpan: 1),
+      'schedules': const PaneRect(col: 2, row: 0, colSpan: 2, rowSpan: 1),
+      'memos': const PaneRect(col: 0, row: 1, colSpan: 4, rowSpan: 1),
+    };
+
+/// PC/タブレット向け: 各ペインのグリッド上の位置・サイズ。
+/// ドラッグ＆リサイズの結果を SharedPreferences に永続化する。
+class GridLayoutNotifier extends AsyncNotifier<Map<String, PaneRect>> {
+  @override
+  Future<Map<String, PaneRect>> build() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_kGridLayoutKey);
+    if (stored == null) return _defaultGridLayout;
+
+    try {
+      final decoded = jsonDecode(stored) as Map<String, dynamic>;
+      final result = <String, PaneRect>{};
+      for (final key in paneKeys) {
+        final raw = decoded[key];
+        if (raw == null) return _defaultGridLayout;
+        result[key] = PaneRect.fromJson(raw as Map<String, dynamic>);
+      }
+      return result;
+    } catch (_) {
+      return _defaultGridLayout;
+    }
+  }
+
+  Future<void> updateLayout(Map<String, PaneRect> layout) async {
+    state = AsyncData(layout);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kGridLayoutKey,
+      jsonEncode({for (final e in layout.entries) e.key: e.value.toJson()}),
+    );
+  }
+}
+
+final gridLayoutProvider =
+    AsyncNotifierProvider<GridLayoutNotifier, Map<String, PaneRect>>(
+  GridLayoutNotifier.new,
+);
+
+/// スマホ向け: 縦積みのペインの並び順（ドラッグ＆ドロップで並び替え）。
+const defaultPaneOrder = paneKeys;
+
 class LayoutOrderNotifier extends AsyncNotifier<List<String>> {
   @override
   Future<List<String>> build() async {
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList(_kPaneOrderKey);
+    final stored = prefs.getStringList(_kMobileOrderKey);
     if (stored != null &&
         stored.length == defaultPaneOrder.length &&
         stored.toSet().containsAll(defaultPaneOrder)) {
@@ -35,38 +121,11 @@ class LayoutOrderNotifier extends AsyncNotifier<List<String>> {
 
     state = AsyncData(updated);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_kPaneOrderKey, updated);
+    await prefs.setStringList(_kMobileOrderKey, updated);
   }
 }
 
 final layoutOrderProvider =
     AsyncNotifierProvider<LayoutOrderNotifier, List<String>>(
   LayoutOrderNotifier.new,
-);
-
-/// 分割表示（PC/タブレット）時の各ペインのサイズ比率。
-class LayoutWeightsNotifier extends AsyncNotifier<List<double>> {
-  @override
-  Future<List<double>> build() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_kPaneWeightsKey);
-    if (stored != null) {
-      final decoded = (jsonDecode(stored) as List).cast<num>();
-      if (decoded.length == defaultPaneOrder.length) {
-        return decoded.map((e) => e.toDouble()).toList();
-      }
-    }
-    return List.filled(defaultPaneOrder.length, 1 / defaultPaneOrder.length);
-  }
-
-  Future<void> updateWeights(List<double> weights) async {
-    state = AsyncData(weights);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kPaneWeightsKey, jsonEncode(weights));
-  }
-}
-
-final layoutWeightsProvider =
-    AsyncNotifierProvider<LayoutWeightsNotifier, List<double>>(
-  LayoutWeightsNotifier.new,
 );

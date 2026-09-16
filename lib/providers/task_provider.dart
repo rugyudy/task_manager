@@ -3,6 +3,7 @@ import 'package:isar/isar.dart';
 
 import '../models/task.dart';
 import 'db_provider.dart';
+import 'notification_provider.dart';
 
 /// タスク一覧を監視するストリーム。DB が更新された瞬間に自動で再描画される。
 final tasksStreamProvider = StreamProvider<List<Task>>((ref) {
@@ -11,30 +12,58 @@ final tasksStreamProvider = StreamProvider<List<Task>>((ref) {
 });
 
 class TaskController {
-  TaskController(this._isar);
+  TaskController(this._isar, this._reminders);
   final Isar _isar;
+  final ReminderService _reminders;
 
-  Future<int> addTask(String title, {DateTime? dueDate}) {
+  Future<int> addTask(
+    String title, {
+    DateTime? dueDate,
+    List<String> tags = const [],
+    int? reminderMinutesBefore,
+  }) async {
     final task = Task()
       ..title = title
-      ..dueDate = dueDate;
-    return _isar.writeTxn(() => _isar.tasks.put(task));
+      ..dueDate = dueDate
+      ..tags = tags
+      ..reminderMinutesBefore = reminderMinutesBefore;
+    final id = await _isar.writeTxn(() => _isar.tasks.put(task));
+    await _syncReminder(task);
+    return id;
   }
 
-  Future<void> updateTask(Task task) {
-    return _isar.writeTxn(() => _isar.tasks.put(task));
+  Future<void> updateTask(Task task) async {
+    await _isar.writeTxn(() => _isar.tasks.put(task));
+    await _syncReminder(task);
   }
 
-  Future<void> toggleCompleted(Task task) {
+  Future<void> toggleCompleted(Task task) async {
     task.isCompleted = !task.isCompleted;
-    return _isar.writeTxn(() => _isar.tasks.put(task));
+    await _isar.writeTxn(() => _isar.tasks.put(task));
+    await _syncReminder(task);
   }
 
-  Future<void> deleteTask(int id) {
-    return _isar.writeTxn(() => _isar.tasks.delete(id));
+  Future<void> deleteTask(int id) async {
+    await _isar.writeTxn(() => _isar.tasks.delete(id));
+    await _reminders.cancel(id);
+  }
+
+  Future<void> _syncReminder(Task task) async {
+    final dueDate = task.dueDate;
+    final minutesBefore = task.reminderMinutesBefore;
+    if (task.isCompleted || dueDate == null || minutesBefore == null) {
+      await _reminders.cancel(task.id);
+      return;
+    }
+    await _reminders.scheduleAt(
+      id: task.id,
+      title: 'タスクの期限',
+      body: task.title,
+      dateTime: dueDate.subtract(Duration(minutes: minutesBefore)),
+    );
   }
 }
 
 final taskControllerProvider = Provider<TaskController>((ref) {
-  return TaskController(ref.watch(isarProvider));
+  return TaskController(ref.watch(isarProvider), ref.watch(reminderServiceProvider));
 });

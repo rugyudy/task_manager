@@ -13,8 +13,7 @@ class TaskPane extends ConsumerWidget {
     final tasksAsync = ref.watch(tasksStreamProvider);
 
     return PaneCard(
-      title: 'タスク',
-      icon: Icons.check_circle_outline,
+      paneKey: 'tasks',
       onExpand: () => context.go('/tasks'),
       child: tasksAsync.when(
         data: (tasks) {
@@ -23,6 +22,7 @@ class TaskPane extends ConsumerWidget {
           }
           final visible = tasks.take(20).toList();
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: visible.length,
             itemBuilder: (context, index) {
               final task = visible[index];

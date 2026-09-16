@@ -9,6 +9,7 @@ import 'models/memo.dart';
 import 'models/schedule.dart';
 import 'models/task.dart';
 import 'providers/db_provider.dart';
+import 'providers/notification_provider.dart';
 import 'views/home/home_screen.dart';
 import 'views/layout/app_shell.dart';
 import 'views/memos/memos_screen.dart';
@@ -24,9 +25,15 @@ Future<void> main() async {
     directory: dir.path,
   );
 
+  final reminders = ReminderService();
+  await reminders.init();
+
   runApp(
     ProviderScope(
-      overrides: [isarProvider.overrideWithValue(isar)],
+      overrides: [
+        isarProvider.overrideWithValue(isar),
+        reminderServiceProvider.overrideWithValue(reminders),
+      ],
       child: const TaskManagerApp(),
     ),
   );
