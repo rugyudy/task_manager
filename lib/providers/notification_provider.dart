@@ -70,6 +70,8 @@ class ReminderService {
         tz.TZDateTime.from(dateTime, tz.local),
         const NotificationDetails(android: _androidChannel),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (_) {
       // 通知のスケジュールに失敗しても、タスク/スケジュール自体の保存は継続する。
