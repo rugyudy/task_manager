@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multi_split_view/multi_split_view.dart';
@@ -88,34 +89,57 @@ class _NarrowHome extends ConsumerWidget {
 }
 
 /// タブレット/PC向け: 境界線をドラッグしてサイズを変更できる分割レイアウト。
-class _WideHome extends ConsumerWidget {
+/// multi_split_view 3.x では weight ベースの API が flex ベースに変わったため、
+/// Area.flex に現在の比率を入れ、ドラッグ終了時にその比率を保存する。
+class _WideHome extends ConsumerStatefulWidget {
   const _WideHome({required this.order});
 
   final List<String> order;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_WideHome> createState() => _WideHomeState();
+}
+
+class _WideHomeState extends ConsumerState<_WideHome> {
+  MultiSplitViewController? _controller;
+  List<String> _syncedOrder = const [];
+
+  void _syncAreas(List<String> order, List<double> weights) {
+    _controller ??= MultiSplitViewController();
+    if (listEquals(_syncedOrder, order)) return;
+    _syncedOrder = List.of(order);
+    _controller!.areas = [
+      for (var i = 0; i < order.length; i++)
+        Area(
+          data: order[i],
+          flex: i < weights.length ? weights[i] : 1 / order.length,
+          min: 200,
+        ),
+    ];
+  }
+
+  void _persistWeights(int _) {
+    final controller = _controller;
+    if (controller == null) return;
+    final newWeights = controller.areas
+        .map((a) => a.flex ?? (1 / widget.order.length))
+        .toList();
+    ref.read(layoutWeightsProvider.notifier).updateWeights(newWeights);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final weightsAsync = ref.watch(layoutWeightsProvider);
 
     return weightsAsync.when(
       data: (weights) {
-        final areas = [
-          for (var i = 0; i < order.length; i++)
-            Area(weight: i < weights.length ? weights[i] : null),
-        ];
-        final controller = MultiSplitViewController(areas: areas);
-
+        _syncAreas(widget.order, weights);
         return Padding(
           padding: const EdgeInsets.all(8),
           child: MultiSplitView(
-            controller: controller,
-            onWeightChange: () {
-              final newWeights = controller.areas
-                  .map((a) => a.weight ?? (1 / order.length))
-                  .toList();
-              ref.read(layoutWeightsProvider.notifier).updateWeights(newWeights);
-            },
-            children: [for (final key in order) _paneFor(key)],
+            controller: _controller!,
+            onDividerDragEnd: _persistWeights,
+            builder: (context, area) => _paneFor(area.data as String),
           ),
         );
       },

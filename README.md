@@ -54,3 +54,16 @@ flutter run
 `*.g.dart`（Isar が生成するコレクション定義）は `.gitignore` していないため、
 一度生成すればリポジトリにコミットして構いません。プラットフォームフォルダ
 (`android/` `ios/` など)は `flutter create .` で再生成できるため `.gitignore` 済みです。
+
+## 実行ターゲットについて（Web は非対応）
+
+`flutter run` でデバイス選択を聞かれたら **Chrome / Edge（Web）ではなく
+Windows（デスクトップ）や Android/iOS 実機・エミュレータを選んでください**。
+
+Isar が生成するコレクションのID（フィールドのハッシュ値）は64bit整数ですが、
+Web（dart2js/dartdevc）でコンパイルすると JavaScript の数値は53bitまでしか
+正確に表現できないため、`The integer literal ... can't be represented exactly
+in JavaScript` というコンパイルエラーになります。これは既知の Isar v3 の制約で、
+アプリのコード側では回避できません。Web で動かしたい場合は Isar のバージョンを
+Web 対応が改善された版に上げる、または別のDB（例: `sembast` や `hive`）に
+差し替える対応が必要です。
